@@ -4,10 +4,10 @@
 
 ## 실행 방법
 
-1. [제출용 Release](https://github.com/seojongwhi-ui/linkcar-pleos-submission-2026/releases/tag/submission-2026-11-15)에서 `Linkcar_링카_release.apk`를 내려받습니다.
+1. [제출용 Release](https://github.com/seojongwhi-ui/linkcar-pleos-submission-2026/releases/tag/submission-2026-11-15)에서 `Linkcar_Linkcar_release.apk`를 내려받습니다.
 2. Pleos Connect-S 에뮬레이터를 실행하고 APK를 설치합니다. 이 환경의 운전자 사용자 ID는 10입니다.
    ```powershell
-   adb install --user 10 "Linkcar_링카_release.apk"
+   adb install --user 10 "Linkcar_Linkcar_release.apk"
    ```
 3. 에뮬레이터 앱 목록 또는 하단 고정 앱 영역에서 **LINKCAR** 아이콘을 눌러 실행합니다.
 
@@ -34,4 +34,4 @@
 
 ## APK 위치
 
-서명된 release APK는 용량이 100MB를 넘어 저장소 파일 대신 [GitHub Releases](https://github.com/seojongwhi-ui/linkcar-pleos-submission-2026/releases/tag/submission-2026-11-15)에 첨부했습니다. 파일명은 `Linkcar_링카_release.apk`입니다.
+서명된 release APK는 용량이 100MB를 넘어 저장소 파일 대신 [GitHub Releases](https://github.com/seojongwhi-ui/linkcar-pleos-submission-2026/releases/tag/submission-2026-11-15)에 첨부했습니다. 파일명은 `Linkcar_Linkcar_release.apk`입니다.
