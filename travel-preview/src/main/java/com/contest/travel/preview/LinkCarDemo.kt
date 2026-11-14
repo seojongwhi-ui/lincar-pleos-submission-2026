@@ -1,0 +1,989 @@
+package com.contest.travel.preview
+
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.ConnectException
+
+internal val linkCarSongs = listOf("밤편지" to "아이유", "여행" to "볼빨간사춘기", "좋은 밤" to "릴보이")
+
+/** Shared journey state; current driving designs are in Figma section 443:20589. */
+internal enum class WireScreen {
+    HOME, CREATE, INVITE, WAITING, MISSION, MUSIC_PICK, FIRST_SONG,
+    WAITING_DECLINED, INVITE_CONFIRM, SHARE_SCOPE, GUEST_WAITING,
+    DRIVE, MAP, DJ, KNOCK_SENT, KNOCK_RECEIVED, KNOCK_FULL, INCOMING_CALL, CALL, CALL_DECLINED,
+    VOICE_LEAVE, VOICE_RECEIVED, VOICE_APPROACH, VOICE_DELIVER,
+    ARRIVED, SUMMARY, SAVE;
+
+    val isEnding get() = this in setOf(ARRIVED, SUMMARY, SAVE)
+
+    val isDriving get() = this in setOf(DRIVE, MAP, DJ, KNOCK_SENT, KNOCK_RECEIVED,
+        KNOCK_FULL, INCOMING_CALL, CALL, CALL_DECLINED,
+        VOICE_LEAVE, VOICE_RECEIVED, VOICE_APPROACH, VOICE_DELIVER)
+
+    val isPreDrive get() = this in setOf(HOME, CREATE, INVITE, WAITING, MISSION,
+        MUSIC_PICK, FIRST_SONG, WAITING_DECLINED, INVITE_CONFIRM, SHARE_SCOPE, GUEST_WAITING)
+}
+
+internal class WireSession {
+    val stack = mutableStateListOf(WireScreen.HOME)
+    val screen get() = stack.last()
+    var navigationDirection by mutableIntStateOf(1)
+    var designPreviewNode by mutableStateOf<String?>(null)
+    var drivingIdle by mutableStateOf(true)
+    var proposalVisible by mutableStateOf(false)
+    val drivingScores = CompanionScores()
+    var motionPreview by mutableStateOf(false)
+    var drivingSimulation by mutableStateOf(false)
+    var demoArrival by mutableStateOf(false)
+        private set
+    var pendingKnockTarget by mutableStateOf<String?>(null)
+    var knockRequestRevision by mutableIntStateOf(0)
+        private set
+    var drivingInteraction by mutableIntStateOf(0)
+    var drivingTouchActive by mutableStateOf(false)
+    var demoKnockAutoAnswer by mutableStateOf(true)
+    var isGuest by mutableStateOf(false)
+    var guestHasPassenger by mutableStateOf(false)
+    var sharingConfirmed by mutableStateOf(false)
+    var sharingOptions: List<Boolean>
+        get() = listOf(settingsToggles[1], settingsToggles[2], settingsToggles[3])
+        set(value) {
+            settingsToggles = settingsToggles.mapIndexed { index, old ->
+                if (index in 1..3) value[index - 1] else old
+            }
+        }
+    var declinedInvitees by mutableStateOf(emptySet<String>())
+    var purpose by mutableStateOf("친구 여행")
+    var destination by mutableStateOf("가평 용추계곡")
+    var createPurposeSelection by mutableStateOf<String?>(null)
+    var createRecentSelection by mutableStateOf<String?>(null)
+    var destinationQuery by mutableStateOf("")
+    var invitees by mutableStateOf(setOf("다연", "문준"))
+    val orderedInvitees get(): List<String> {
+        val roster = listOf("다연", "문준", "성윤", "민석", "현진", "준호")
+        return roster.filter { it in invitees } + invitees.filterNot { it in roster }
+    }
+    var phone by mutableStateOf("")
+    var mission by mutableStateOf(true)
+    var music by mutableStateOf(true)
+    var playing by mutableStateOf(true)
+    var song by mutableIntStateOf(0)
+    var songSeek by mutableFloatStateOf(0f)
+    val musicProgress get() = songSeek
+
+    fun skipSong(direction: Int) = stepSong(direction)
+
+    fun advanceMusic() {
+        if (!music || !playing) return
+        val next = songSeek + 1f / 180f
+        if (next >= 1f - 0.00001f) stepSong(1) else songSeek = next
+    }
+    var progress by mutableFloatStateOf(0f)
+    var tripMotionStarted by mutableStateOf(false)
+    var demoVoiceTriggered by mutableStateOf(false)
+    var vote by mutableStateOf("")
+    var waypoint by mutableStateOf(false)
+    var knockTimedOut by mutableStateOf(false)
+    var recordingTarget by mutableStateOf<String?>(null)
+    var recordingAttempt by mutableIntStateOf(0)
+    var knockTarget by mutableStateOf("다연 차")
+    var seconds by mutableIntStateOf(10)
+    var incomingCaller by mutableStateOf("다연 차")
+    var roadVoiceShown by mutableStateOf(false)
+    var saved by mutableStateOf(false)
+    var showSettings by mutableStateOf(false)
+    var settingsToggles by mutableStateOf(listOf(true, true, true, false, false))
+    var showEnd by mutableStateOf(false)
+    var showHistory by mutableStateOf(false)
+    var showHistoryUnavailable by mutableStateOf(false)
+    var historyNoticeRequest by mutableIntStateOf(0)
+        private set
+    var message by mutableStateOf("")
+    var wager by mutableStateOf(false)
+    var generatedPoll by mutableStateOf<GeneratedPoll?>(null)
+    var pollBusy by mutableStateOf(false)
+    var showVoiceMenu by mutableStateOf(false)
+    var speechFeedbackVisible by mutableStateOf(false)
+    var pollDemoVisible by mutableStateOf(false)
+    var pollDemoSpeaking by mutableStateOf(false)
+    var companionsExpanded by mutableStateOf(false)
+    var showVoiceRecorder by mutableStateOf(false)
+    var showPollTextEntry by mutableStateOf(false)
+    var pollDraft by mutableStateOf("")
+    var lastNoteId by mutableStateOf<String?>(null)
+
+    fun openVoiceUi() {
+        clearDrivingOverlays()
+        designPreviewNode = null
+        showVoiceMenu = true
+    }
+
+    fun openHistory(restricted: Boolean) {
+        if (restricted) {
+            showHistoryUnavailable = true
+            historyNoticeRequest++
+            return
+        }
+        clearDrivingOverlays()
+        designPreviewNode = null
+        showHistory = true
+    }
+
+    fun open(next: WireScreen) {
+        designPreviewNode = null
+        navigationDirection = 1
+        if (screen != next) stack.add(next)
+    }
+    fun back() {
+        navigationDirection = -1
+        if (stack.size > 1) stack.removeAt(stack.lastIndex)
+    }
+    val canSendInvites get() = invitees.isNotEmpty() || phone.count(Char::isDigit) in 9..15
+
+    fun toggleInvitee(name: String) {
+        invitees = if (name in invitees) invitees - name
+            else if (invitees.size < 3) invitees + name else invitees
+    }
+
+    fun sendInvites() {
+        if (!canSendInvites) return
+        if (phone.count(Char::isDigit) in 9..15 && invitees.size < 3) invitees += phone
+        declinedInvitees = emptySet()
+        isGuest = false
+        open(WireScreen.WAITING)
+    }
+
+    fun startLocalTrip(withMusic: Boolean) {
+        demoArrival = false
+        drivingScores.reset()
+        music = withMusic
+        playing = withMusic
+        song = 0
+        songSeek = 0f
+        progress = 0f
+        tripMotionStarted = false
+        demoVoiceTriggered = false
+        drivingIdle = true
+        proposalVisible = false
+        open(WireScreen.DRIVE)
+    }
+    fun drive() {
+        demoArrival = false
+        designPreviewNode = null
+        drivingIdle = true
+        navigationDirection = -1
+        showHistory = false
+        showVoiceMenu = false
+        while (stack.size > 1 && stack.last().isDriving) stack.removeAt(stack.lastIndex)
+        if (screen != WireScreen.DRIVE) stack.add(WireScreen.DRIVE)
+    }
+    fun acceptIncomingCall() {
+        if (screen != WireScreen.INCOMING_CALL || incomingCaller != "다연 차") return
+        open(WireScreen.CALL)
+    }
+    fun simulateIncomingCall(caller: String) {
+        incomingCaller = caller
+        showSettings = false
+        open(WireScreen.INCOMING_CALL)
+    }
+    fun startKnockCall() {
+        incomingCaller = knockTarget
+        seconds = 30
+        open(WireScreen.CALL)
+    }
+    fun sendKnock(target: String) {
+        clearDrivingOverlays()
+        knockTimedOut = false
+        knockTarget = target
+        seconds = 10
+        knockRequestRevision++
+        open(WireScreen.KNOCK_SENT)
+    }
+    fun acceptPendingDemoKnock(): Boolean {
+        if (screen != WireScreen.KNOCK_SENT || seconds <= 0) return false
+        startKnockCall()
+        return true
+    }
+    fun expirePendingKnock() {
+        if (screen != WireScreen.KNOCK_SENT || seconds > 0) return
+        knockTimedOut = true
+        open(WireScreen.VOICE_LEAVE)
+    }
+    fun beginVoiceRecording(target: String? = null) {
+        designPreviewNode = null
+        recordingTarget = target
+        recordingAttempt++
+        showVoiceMenu = false
+        speechFeedbackVisible = false
+        showVoiceRecorder = true
+    }
+    fun respondToRoadVoice(stopBy: Boolean) {
+        message = if (stopBy) "들렀다 갈게요를 선택했어요." else "그냥 갈게요를 선택했어요."
+        roadVoiceShown = false
+        if (stopBy) { waypoint = true; open(WireScreen.MAP) } else drive()
+    }
+    private fun clearDrivingOverlays() {
+        drivingIdle = true
+        showHistory = false
+        showVoiceMenu = false
+        showSettings = false
+        showEnd = false
+        showHistoryUnavailable = false
+        showPollTextEntry = false
+        showVoiceRecorder = false
+        speechFeedbackVisible = false
+        pollDemoVisible = false
+        pollDemoSpeaking = false
+        pollBusy = false
+        proposalVisible = false
+        generatedPoll = null
+        roadVoiceShown = false
+        message = ""
+    }
+    fun returnToDrivingMain(keepExpandedPanel: Boolean = false) {
+        clearDrivingOverlays()
+        designPreviewNode = null
+        if (!keepExpandedPanel || screen !in setOf(WireScreen.MAP, WireScreen.DJ)) drive()
+    }
+    fun arriveForDemo() {
+        if (!screen.isDriving) return
+        clearDrivingOverlays()
+        pendingKnockTarget = null
+        knockTimedOut = false
+        demoArrival = true
+        // A completed trip cannot return to a pending knock or recording with Back.
+        while (stack.size > 1 && stack.last().isDriving) stack.removeAt(stack.lastIndex)
+        open(WireScreen.ARRIVED)
+    }
+    fun respondToProposal(accepted: Boolean) {
+        vote = if (accepted) generatedPoll?.options?.firstOrNull() ?: "accepted"
+            else generatedPoll?.options?.getOrNull(1) ?: "rejected"
+        proposalVisible = false
+        generatedPoll = null
+        drivingIdle = true
+        if (accepted) { waypoint = true; open(WireScreen.MAP) } else drive()
+    }
+    fun stepSong(delta: Int) {
+        if (!music) {
+            music = true
+            playing = true
+        }
+        designPreviewNode = null
+        song = Math.floorMod(song + delta, linkCarSongs.size)
+        songSeek = 0f
+    }
+    fun toggleMusicPlayback() {
+        if (!music) {
+            music = true
+            playing = true
+            songSeek = 0f
+            return
+        }
+        designPreviewNode = null
+        playing = !playing
+    }
+    fun declineIncomingCall() {
+        if (screen != WireScreen.INCOMING_CALL) return
+        open(WireScreen.CALL_DECLINED)
+    }
+    fun home() {
+        demoArrival = false
+        drivingScores.reset()
+        pendingKnockTarget = null
+        designPreviewNode = null
+        showVoiceRecorder = false
+        showVoiceMenu = false
+        drivingIdle = true
+        proposalVisible = false
+        showSettings = false
+        showEnd = false
+        showHistory = false
+        showHistoryUnavailable = false
+        navigationDirection = -1
+        stack.clear()
+        stack.add(WireScreen.HOME)
+        isGuest = false
+        declinedInvitees = emptySet()
+        createPurposeSelection = null
+        createRecentSelection = null
+        destinationQuery = ""
+        progress = 0f
+        song = 0
+        songSeek = 0f
+        playing = true
+        tripMotionStarted = false
+        demoVoiceTriggered = false
+        incomingCaller = "다연 차"
+        roadVoiceShown = false
+        companionsExpanded = false
+        speechFeedbackVisible = false
+        pollDemoVisible = false
+        pollDemoSpeaking = false
+        waypoint = false
+        vote = ""
+        message = ""
+    }
+}
+
+/** Wireframe colors are shared here; no new visual direction is added. */
+internal object Wire {
+    val background = Color(0xFFF7F8FA)
+    val surface = Color.White
+    val muted = Color(0xFFEDEEF2)
+    val mutedStrong = Color(0xFFC7C9CE)
+    val ink = Color(0xFF313236)
+    val secondary = Color(0xFFA4A8AE)
+    val action = Color(0xFF44464E)
+    val teal = Color(0xFF0064FF)
+    val orange = Color(0xFFA4A8AE)
+}
+
+@Composable
+internal fun LinkCarDemoScreen(wide: Boolean, enabled: Boolean, setupRestricted: Boolean,
+    foreground: Boolean,
+    onExit: () -> Unit, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    // This debug-only entry point lets designers inspect event-driven invitation
+    // states without pretending a real push notification or another car exists.
+    val designIntent = (context as? android.app.Activity)?.intent?.takeIf {
+        context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0 &&
+            it.action == "com.contest.travel.preview.DESIGN_PREVIEW"
+    }
+    val previewNode = designIntent?.getStringExtra("figmaNode")
+    val previewDrive = designIntent?.getBooleanExtra("drivingSimulation", false) == true
+    val previewMotion = !previewDrive && designIntent?.getBooleanExtra("companionMotion", false) == true
+    val s = remember(previewNode, previewMotion, previewDrive) { WireSession().apply {
+        applyDesignPreview(previewNode)
+        demoKnockAutoAnswer = designIntent?.getBooleanExtra("knockAutoAnswer", true) != false
+        if (previewMotion) { motionPreview = true; drivingScores.reset(first = 100) }
+        if (previewDrive) {
+            drivingSimulation = true; designPreviewNode = null; drivingScores.reset(first = 100)
+        }
+    } }
+    LaunchedEffect(s, previewMotion) {
+        if (previewMotion) {
+            delay(2200)
+            s.drivingScores.deduct("다연 차", 3, "급가속")
+        }
+    }
+    val voice = remember { LinkCarVoiceRuntime(context) }
+    val demoAudioPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            val imported = voice.importDemoMarker(uri)
+            s.message = voice.status
+            if (imported) {
+                s.demoVoiceTriggered = false
+                s.roadVoiceShown = false
+                s.showVoiceRecorder = false
+            }
+        }
+    }
+    val live = LocalTripLive.current
+    fun startPollSpeech() { s.beginVoiceRecording("모두에게") }
+    var requestingMicPermission by remember { mutableStateOf(false) }
+    var microphoneAskedAttempt by remember { mutableIntStateOf(-1) }
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        requestingMicPermission = false
+        if (granted && s.showVoiceRecorder) voice.startRecording()
+        else if (!granted) s.message = "마이크 권한이 필요해요. 허용한 뒤 다시 시도해 주세요."
+    }
+    LaunchedEffect(s.showVoiceRecorder, s.recordingAttempt, foreground) {
+        if (!s.showVoiceRecorder || (!foreground && !requestingMicPermission)) {
+            if (voice.isRecording) voice.cancelRecording()
+            if (!foreground && !requestingMicPermission) s.showVoiceRecorder = false
+        } else if (foreground && !voice.isRecording && !requestingMicPermission) {
+            s.message = ""
+            if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
+                voice.startRecording()
+            else if (setupRestricted) s.message = "마이크 권한이 필요해요. 정차한 뒤 허용해 주세요."
+            else if (microphoneAskedAttempt != s.recordingAttempt) {
+                microphoneAskedAttempt = s.recordingAttempt
+                requestingMicPermission = true
+                micPermission.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        }
+    }
+    LaunchedEffect(s.showVoiceRecorder, voice.isRecording) {
+        if (s.showVoiceRecorder && voice.isRecording) {
+            delay(60_000)
+            finishVoiceRecording(s, voice)
+        }
+    }
+    LaunchedEffect(s.speechFeedbackVisible, voice.isListening) {
+        if (s.speechFeedbackVisible && voice.isListening) {
+            delay(12_000)
+            if (voice.isListening) {
+                voice.stopListening()
+                s.message = "녹음은 저장됐어요. 음성 인식을 사용할 수 없어 글자로 안건을 입력할 수 있어요."
+            }
+        }
+    }
+    LaunchedEffect(s.speechFeedbackVisible, s.screen.isDriving) {
+        if (!s.speechFeedbackVisible || !s.screen.isDriving) voice.stopListening()
+    }
+    DisposableEffect(voice) { onDispose { voice.release() } }
+    DisposableEffect(voice, s.pollDemoVisible) {
+        val demoWasVisible = s.pollDemoVisible
+        onDispose { if (demoWasVisible) voice.audio.stopPlayback() }
+    }
+    val naviPoint = live.location.value?.takeIf { live.location.status == ReadStatus.READY && it.isValid() }
+    LaunchedEffect(naviPoint) { voice.updateFallbackPoint(naviPoint) }
+    LaunchedEffect(foreground) { if (foreground) voice.startLocation() else voice.release() }
+    val convoy by rememberUpdatedState(LocalConvoy.current)
+    LaunchedEffect(convoy.dayeonScore, convoy.munjunScore, convoy.dayeonEvent?.id,
+        convoy.munjunEvent?.id, convoy.revision, s.drivingSimulation, s.designPreviewNode) {
+        if (!s.drivingSimulation && s.designPreviewNode == null) {
+            s.drivingScores.showConvoyScores(convoy.dayeonScore, convoy.munjunScore,
+                convoy.revision, convoy.dayeonEvent, convoy.munjunEvent)
+        }
+    }
+    val vehicleMotion = LocalVehicleMotion.current
+    val penaltyDetector = remember(s) { DrivingPenaltyDetector() }
+    val screen = s.screen
+    DrivingIdleReturn(s, voice, foreground)
+    LaunchedEffect(vehicleMotion.sampleId, vehicleMotion.gear, vehicleMotion.error,
+        foreground, s.drivingSimulation, screen.isDriving) {
+        if (!s.drivingSimulation || !foreground || !screen.isDriving) penaltyDetector.reset()
+        else penaltyDetector.sample(vehicleMotion.sampleTimeMillis,
+            vehicleMotion.speedMetersPerSecond.toDouble(), vehicleMotion.inDrive,
+            vehicleMotion.error == null && vehicleMotion.sampleId > 0).forEach { event ->
+            // One-emulator test mode explicitly uses this signal as the simulated Dayeon vehicle.
+            // Own-car scores remain hidden; this is not remote telemetry from another car.
+            s.drivingScores.deduct("다연 차", event.points, event.reason)
+        }
+    }
+    BackHandler {
+        if (s.showHistoryUnavailable) s.showHistoryUnavailable = false
+        else if (s.showEnd) s.showEnd = false
+        else if (s.showSettings) s.showSettings = false
+        else if (s.showHistory) { s.returnToDrivingMain(); voice.audio.stopPlayback() }
+        else if (s.showVoiceRecorder) s.returnToDrivingMain()
+        else if (s.showVoiceMenu) s.returnToDrivingMain()
+        else if (s.speechFeedbackVisible) { s.returnToDrivingMain(); voice.stopListening() }
+        else if (s.pollDemoVisible) {
+            voice.audio.stopPlayback()
+            s.pollDemoSpeaking = false
+            s.pollDemoVisible = false
+        }
+        else if (screen == WireScreen.HOME) onExit() else s.back()
+    }
+
+    LaunchedEffect(s, s.showHistoryUnavailable, s.historyNoticeRequest, foreground,
+        setupRestricted, screen.isDriving) {
+        if (!s.showHistoryUnavailable) return@LaunchedEffect
+        if (foreground && setupRestricted && screen.isDriving) delay(2_200)
+        s.showHistoryUnavailable = false
+    }
+
+    LaunchedEffect(setupRestricted) {
+        if (setupRestricted) {
+            s.showSettings = false
+            s.showEnd = false
+            s.showHistory = false
+            s.showPollTextEntry = false
+        }
+    }
+
+    LaunchedEffect(s.music, s.playing, screen.isDriving, foreground, s.designPreviewNode) {
+        while (s.music && s.playing && screen.isDriving && foreground &&
+            s.designPreviewNode == null) {
+            delay(1_000)
+            s.advanceMusic()
+        }
+    }
+
+    LaunchedEffect(screen, s.designPreviewNode, s.knockRequestRevision) {
+        if (s.designPreviewNode != null) return@LaunchedEffect
+        when (screen) {
+            WireScreen.KNOCK_SENT -> {
+                s.seconds = 10
+                repeat(10) {
+                    delay(1_000); s.seconds--
+                    if (s.demoKnockAutoAnswer && s.knockTarget == "다연 차" && s.seconds == 7 &&
+                        !convoy.useRealCar) {
+                        s.acceptPendingDemoKnock()
+                        return@LaunchedEffect
+                    }
+                }
+                s.expirePendingKnock()
+            }
+            WireScreen.KNOCK_RECEIVED, WireScreen.KNOCK_FULL -> {
+                s.seconds = 10
+                repeat(10) { delay(1_000); s.seconds-- }
+                s.drive()
+            }
+            WireScreen.CALL -> {
+                s.seconds = 30
+                repeat(30) { delay(1_000); s.seconds-- }
+                s.drive()
+            }
+            WireScreen.INCOMING_CALL -> {
+                s.seconds = if (s.incomingCaller == "문준 차") 6 else 30
+                repeat(s.seconds) { delay(1_000); s.seconds-- }
+                if (s.incomingCaller == "문준 차") s.declineIncomingCall()
+                else s.drive()
+            }
+            WireScreen.CALL_DECLINED -> {
+                delay(3_000)
+                s.drive()
+            }
+            else -> Unit
+        }
+    }
+    val currentFeed = drivingFeed(s, screen)
+    LaunchedEffect(screen.isDriving, convoy.distanceMeters, foreground, voice.notes.hasDemoMarker,
+        s.designPreviewNode, currentFeed) {
+        if (s.designPreviewNode != null) return@LaunchedEffect
+        if (!screen.isDriving) {
+            s.tripMotionStarted = false
+            return@LaunchedEffect
+        }
+        if (!s.tripMotionStarted) {
+            s.tripMotionStarted = true
+            voice.notes.rearmDemoMarkerForNewTrip()
+            convoy.reset()
+            s.progress = 0f
+            return@LaunchedEffect
+        }
+        s.progress = demoVisualProgress(convoy.distanceMeters)
+        if (foreground && !s.demoVoiceTriggered && voice.notes.hasDemoMarker &&
+            convoy.distanceMeters >= 200.0 && !voice.audio.isPlaying &&
+            currentFeed in setOf(DFeed.IDLE, DFeed.MESSAGE)) {
+            if (voice.playDemoMarker {}) {
+                s.demoVoiceTriggered = true
+                s.roadVoiceShown = true
+                if (screen == WireScreen.MAP || screen == WireScreen.DJ) s.drive()
+            }
+        }
+    }
+
+    Surface(modifier.fillMaxSize(), color = Wire.background) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val contentWide = wide && maxWidth >= 900.dp
+            val designWide = maxWidth >= 1500.dp
+            LinkCarPageTransition(screen, s.navigationDirection, Modifier.fillMaxSize()) { page ->
+            Column(Modifier.fillMaxSize().then(if (designWide || page.isPreDrive)
+                Modifier.background(DesignedJourneyBackdrop) else Modifier)
+                .padding(if (page.isPreDrive || page.isDriving || (designWide && page == WireScreen.SUMMARY)) 0.dp else 12.dp)) {
+                if (setupRestricted && !page.isDriving && !canShowDemoEnding(s, page, convoy.useRealCar)) {
+                    DrivingHoldingScreen()
+                } else when {
+                    page.isPreDrive -> FigmaJourneyExact(s, page, enabled && page == s.screen)
+                    page == WireScreen.SUMMARY -> if (designWide)
+                        DesignedJourney(s, page, enabled) else WireEnding(s, page, contentWide, enabled)
+                    page == WireScreen.ARRIVED || page == WireScreen.SAVE ->
+                        WireEnding(s, page, contentWide, enabled)
+                    else -> WireDriving(s, page, contentWide, enabled, voice,
+                        designWide = designWide, setupRestricted = setupRestricted,
+                        onResetDemo = {
+                            voice.audio.stopPlayback()
+                            s.showVoiceRecorder = false
+                            s.showVoiceMenu = false
+                            voice.notes.rearmDemoMarkerForNewTrip()
+                            convoy.reset()
+                            s.progress = 0f
+                            s.demoVoiceTriggered = false
+                            s.roadVoiceShown = false
+                            s.pollDemoVisible = false
+                            s.pollDemoSpeaking = false
+                            s.message = "출발 지점으로 돌아갔어요."
+                            s.drive()
+                        }, onPollSpeech = {
+                        startPollSpeech()
+                    }, onVoiceClick = {
+                        if (s.screen != WireScreen.DRIVE) s.drive()
+                        s.openVoiceUi()
+                    })
+                }
+            }
+            }
+        }
+    }
+    if (s.showVoiceMenu && !wide && !screen.isDriving) AlertDialog(onDismissRequest = { s.showVoiceMenu = false },
+        title = { Text("모두에게 말하기") },
+        text = { Text("말로 투표 안건을 만들거나 길에 원본 음성을 남길 수 있어요.") },
+        dismissButton = { TextButton(onClick = { s.showVoiceMenu = false }) { Text("취소") } },
+        confirmButton = {
+            Column {
+                TextButton(onClick = {
+                    s.showVoiceMenu = false
+                    if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
+                        PackageManager.PERMISSION_GRANTED) startPollSpeech()
+                    else if (setupRestricted) s.message = "마이크 권한이 필요해요. 정차한 뒤 허용해 주세요."
+                    else micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                }) { Text("투표 안건 말하기") }
+                TextButton(onClick = { s.beginVoiceRecording() }) {
+                    Text("길에 음성 남기기")
+                }
+            }
+        })
+    if (s.showPollTextEntry && !setupRestricted) AlertDialog(onDismissRequest = { s.showPollTextEntry = false },
+        title = { Text("텍스트로 AI 투표 시험") },
+        text = {
+            TextField(value = s.pollDraft, onValueChange = { s.pollDraft = it.take(500) },
+                label = { Text("투표할 내용") }, singleLine = true)
+        },
+        dismissButton = { TextButton(onClick = { s.showPollTextEntry = false }) { Text("취소") } },
+        confirmButton = { TextButton(onClick = {
+            if (s.pollDraft.isNotBlank()) {
+                s.message = "인식: ${s.pollDraft.trim()}"
+                s.pollBusy = true
+                s.showPollTextEntry = false
+            }
+        }, enabled = s.pollDraft.isNotBlank()) { Text("AI로 만들기") } })
+    LaunchedEffect(s.message, s.pollBusy) {
+        if (s.pollBusy && s.message.startsWith("인식: ")) {
+            val transcript = s.message.removePrefix("인식: ")
+            voice.stopListening()
+            val result = withContext(Dispatchers.IO) { PollBridge.generate(transcript) }
+            s.pollBusy = false
+            result.onSuccess { s.speechFeedbackVisible = false; s.generatedPoll = it; s.vote = ""; s.message = "AI가 투표 안건을 만들었어요." }
+                .onFailure {
+                    s.message = if (it is ConnectException)
+                        "투표 생성 실패: PC에서 OpenAI 브리지(tools/openai_poll_bridge.py)를 실행해 주세요."
+                    else "투표 생성 실패: ${it.message ?: "OpenAI 브리지를 확인해 주세요."}"
+                }
+        }
+    }
+    if (s.showSettings && !screen.isDriving && wide && !setupRestricted) DesignedSettingsDialog(s)
+    else if (s.showSettings && !screen.isDriving && !setupRestricted) AlertDialog(onDismissRequest = { s.showSettings = false },
+        title = { Text("설정") }, text = {
+            Column {
+                Text("현재는 한 기기 시연입니다. 원본 음성 녹음·재생은 이 기기에서 작동하지만 차량 간 음성 연결·음악은 아직 전송되지 않습니다.")
+                TextButton(onClick = { s.simulateIncomingCall("다연 차") }) { Text("다연 차 전화 수신 시연") }
+                TextButton(onClick = { s.simulateIncomingCall("문준 차") }) { Text("문준 차 전화 수신 시연") }
+            }
+        }, confirmButton = { TextButton(onClick = { s.showSettings = false }) { Text("닫기") } })
+    if (s.showEnd && !screen.isDriving && wide && !setupRestricted) DesignedEndDialog(s)
+    else if (s.showEnd && !screen.isDriving && !setupRestricted) AlertDialog(onDismissRequest = { s.showEnd = false },
+        title = { Text("동행을 종료할까요?") },
+        text = { Text("시연 여행을 마치고 도착 화면으로 이동합니다.") },
+        dismissButton = { TextButton(onClick = { s.showEnd = false }) { Text("계속 가기") } },
+        confirmButton = { TextButton(onClick = {
+            s.showEnd = false
+            s.open(WireScreen.ARRIVED)
+        }) { Text("동행 종료") } })
+    if (s.showHistory && !screen.isDriving && wide && !setupRestricted) DesignedHistoryDialog(s, voice)
+    else if (s.showHistory && !screen.isDriving && !setupRestricted) AlertDialog(onDismissRequest = { s.showHistory = false },
+        title = { Text("이전 대화") },
+        text = { Text("다연 차 · 휴게소 들렀다 가자\n문준 차 · 이 노래 누가 신청했어? 좋다") },
+        dismissButton = {
+            voice.notes.notes.lastOrNull { it.id == s.lastNoteId }?.let { note ->
+                TextButton(onClick = { voice.play(note) }) { Text("남긴 음성 듣기") }
+            }
+        },
+        confirmButton = { TextButton(onClick = { s.showHistory = false }) { Text("닫기") } })
+}
+
+@Composable
+private fun DrivingHoldingScreen() {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("주행 중이에요", style = MaterialTheme.typography.headlineMedium, color = Wire.ink)
+            Spacer(Modifier.height(12.dp))
+            Text("여행 만들기와 설정은 안전한 곳에 정차한 뒤 이용할 수 있어요.",
+                style = MaterialTheme.typography.bodyLarge, color = Wire.secondary)
+        }
+    }
+}
+
+@Composable
+internal fun WireHeader(title: String, subtitle: String, step: String? = null, back: (() -> Unit)? = null) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 86.dp), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        if (back != null) WireButton("‹", back, filled = false, width = 64.dp, height = 64.dp)
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.headlineMedium, color = Wire.ink)
+            Text(subtitle, style = MaterialTheme.typography.labelMedium, color = Wire.secondary)
+        }
+        step?.let { WireChip(it) }
+    }
+}
+
+@Composable
+internal fun WirePanel(modifier: Modifier = Modifier, padding: Dp = 28.dp,
+    content: @Composable ColumnScope.() -> Unit) {
+    Surface(modifier, color = Wire.surface, shape = RoundedCornerShape(Pleos215.RadiusLarge)) {
+        Column(Modifier.fillMaxSize().padding(padding), content = content)
+    }
+}
+
+@Composable
+internal fun WireButton(label: String, onClick: () -> Unit, filled: Boolean = true,
+    enabled: Boolean = true, modifier: Modifier = Modifier, width: Dp? = null, height: Dp = Pleos215.ButtonLarge) {
+    val sized = if (width != null) modifier.width(width) else modifier
+    Button(onClick = onClick, enabled = enabled, modifier = sized.height(height),
+        shape = RoundedCornerShape(Pleos215.RadiusLarge),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (filled) Wire.action else Wire.muted,
+            contentColor = if (filled) Color.White else Wire.ink,
+            disabledContainerColor = Wire.muted,
+            disabledContentColor = Wire.secondary),
+        contentPadding = PaddingValues(horizontal = 20.dp)) {
+        Text(label, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+    }
+}
+
+@Composable
+internal fun WireChip(label: String, modifier: Modifier = Modifier, selected: Boolean = false,
+    onClick: (() -> Unit)? = null) {
+    Surface(modifier.then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        color = if (selected) Wire.action else Wire.muted,
+        contentColor = if (selected) Color.White else Wire.ink,
+        shape = RoundedCornerShape(Pleos215.RadiusSmall)) {
+        Text(label, Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+            style = MaterialTheme.typography.labelMedium)
+    }
+}
+
+@Composable
+internal fun WireAvatar(name: String, size: Dp = 80.dp, modifier: Modifier = Modifier) {
+    val ring = when (name) { "다연", "B차" -> Wire.teal; "문준", "C차" -> Wire.orange; else -> Wire.ink }
+    val portrait = when (name) {
+        "나", "내 차", "승호" -> R.drawable.flow_imgprofilephoto
+        "다연", "다연 차", "B차" -> R.drawable.flow_imgprofilephoto2
+        "문준", "문준 차", "C차" -> R.drawable.flow_imgprofilephoto1
+        "성윤" -> R.drawable.invite_seongyun
+        "민석" -> R.drawable.invite_minseok
+        "현진" -> R.drawable.invite_hyeonjin
+        "준호" -> R.drawable.invite_junho
+        else -> null
+    }
+    if (portrait != null) {
+        Image(painterResource(portrait), name,
+            modifier.size(size).border(4.dp, ring, CircleShape).padding(4.dp).clip(CircleShape),
+            contentScale = ContentScale.Crop)
+        return
+    }
+    Canvas(modifier.size(size)) {
+        drawCircle(Wire.surface)
+        drawCircle(ring, style = Stroke(4.dp.toPx()))
+        drawCircle(Wire.mutedStrong, radius = this.size.minDimension * .38f)
+        drawCircle(Color(0xFFC7C9CE), radius = this.size.minDimension * .11f,
+            center = Offset(this.size.width * .5f, this.size.height * .4f))
+        drawArc(Color(0xFFC7C9CE), 180f, 180f, false,
+            topLeft = Offset(this.size.width * .26f, this.size.height * .54f),
+            size = androidx.compose.ui.geometry.Size(this.size.width * .48f, this.size.height * .32f),
+            style = Stroke(this.size.width * .14f, cap = StrokeCap.Round))
+    }
+}
+
+@Composable
+internal fun WireInput(value: String, onValueChange: (String) -> Unit, placeholder: String,
+    modifier: Modifier = Modifier, enabled: Boolean = true) {
+    TextField(value = value, onValueChange = onValueChange, enabled = enabled,
+        placeholder = { Text(placeholder, style = MaterialTheme.typography.labelMedium, color = Wire.secondary) },
+        modifier = modifier.heightIn(min = 80.dp),
+        shape = RoundedCornerShape(Pleos215.RadiusLarge),
+        singleLine = true,
+        colors = TextFieldDefaults.colors(focusedContainerColor = Wire.muted,
+            unfocusedContainerColor = Wire.muted, disabledContainerColor = Wire.muted,
+            focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent))
+}
+
+@Composable
+internal fun WireSub(text: String, modifier: Modifier = Modifier) {
+    Text(text, modifier, style = MaterialTheme.typography.labelMedium, color = Wire.secondary)
+}
+
+@Composable
+internal fun WireTitle(text: String, modifier: Modifier = Modifier) {
+    Text(text, modifier, style = MaterialTheme.typography.displaySmall, color = Wire.ink)
+}
+
+@Composable
+internal fun WireRow(title: String, detail: String, modifier: Modifier = Modifier,
+    selected: Boolean = false, onClick: (() -> Unit)? = null) {
+    Surface(modifier.then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        color = Wire.muted, shape = RoundedCornerShape(Pleos215.RadiusMedium),
+        border = if (selected) BorderStroke(2.dp, Wire.action) else null) {
+        Column(Modifier.padding(20.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, color = Wire.ink)
+            WireSub(detail)
+        }
+    }
+}
+
+@Composable
+internal fun WireHome(s: WireSession, wide: Boolean, enabled: Boolean) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 86.dp), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+        WireAvatar("나", 76.dp)
+        Column {
+            Text("안녕하세요, 승호님", style = MaterialTheme.typography.headlineMedium, color = Wire.ink)
+            WireSub("내 차 · 아이오닉 5")
+        }
+    }
+    Spacer(Modifier.height(16.dp))
+    if (wide) {
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            WireHomeCreate(s, enabled, Modifier.weight(1.55f).fillMaxHeight())
+            WireHomeRecent(s, enabled, Modifier.weight(1f).fillMaxHeight())
+        }
+    } else Column(Modifier.verticalScroll(rememberScrollState())) {
+        WireHomeCreate(s, enabled, Modifier.fillMaxWidth().height(420.dp))
+        Spacer(Modifier.height(16.dp))
+        WireHomeRecent(s, enabled, Modifier.fillMaxWidth().height(420.dp))
+    }
+}
+
+@Composable
+private fun WireHomeCreate(s: WireSession, enabled: Boolean, modifier: Modifier) {
+    val convoy = LocalConvoy.current
+    WirePanel(modifier) {
+        Spacer(Modifier.weight(1f))
+        Box(Modifier.size(180.dp).background(Wire.muted, CircleShape).align(Alignment.CenterHorizontally),
+            contentAlignment = Alignment.Center) {
+            Text("+", style = MaterialTheme.typography.displayLarge, color = Wire.action)
+        }
+        Spacer(Modifier.height(24.dp))
+        WireTitle("새 여행 만들기", Modifier.align(Alignment.CenterHorizontally))
+        WireSub("목적과 목적지를 정하면 함께 갈 차를 초대할 수 있어요", Modifier.align(Alignment.CenterHorizontally))
+        Spacer(Modifier.height(24.dp))
+        WireButton("여행 만들기", { convoy.reset(); s.open(WireScreen.CREATE) }, enabled = enabled,
+            modifier = Modifier.fillMaxWidth(.78f).align(Alignment.CenterHorizontally))
+        Spacer(Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun WireHomeRecent(s: WireSession, enabled: Boolean, modifier: Modifier) {
+    WirePanel(modifier) {
+        Text("지난 여행 다시 가기", style = MaterialTheme.typography.titleLarge, color = Wire.ink)
+        Spacer(Modifier.height(16.dp))
+        WireRecentCard(if (s.saved) "${s.destination} 가는 길" else "가평 계곡 가는 길",
+            "친구 여행 · 10월 12일", listOf("다연", "문준"), enabled) {
+            s.open(WireScreen.WAITING)
+        }
+        Spacer(Modifier.height(12.dp))
+        WireRecentCard("할머니 댁", "가족 · 9월 17일", listOf("나"), enabled) {
+            s.destination = "할머니 댁"; s.purpose = "가족"; s.open(WireScreen.WAITING)
+        }
+        Spacer(Modifier.weight(1f))
+        WireSub("같은 멤버면 초대 없이 바로 다시 모여요")
+    }
+}
+
+@Composable
+private fun WireRecentCard(title: String, detail: String, people: List<String>,
+    enabled: Boolean, onClick: () -> Unit) {
+    Surface(Modifier.fillMaxWidth().clickable(enabled, onClick = onClick),
+        color = Wire.muted, shape = RoundedCornerShape(Pleos215.RadiusMedium)) {
+        Column(Modifier.padding(20.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, color = Wire.ink)
+            WireSub(detail)
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
+                people.forEach { WireAvatar(it, 46.dp) }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun WireCreate(s: WireSession, wide: Boolean, enabled: Boolean) {
+    WireHeader("여행 만들기", "어떤 이동인지와 목적지를 정해 주세요", "1 / 2", s::back)
+    Spacer(Modifier.height(16.dp))
+    if (wide) Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+        WirePurpose(s, enabled, Modifier.weight(1f).fillMaxHeight())
+        WireDestination(s, enabled, Modifier.weight(1f).fillMaxHeight())
+    } else Column(Modifier.verticalScroll(rememberScrollState())) {
+        WirePurpose(s, enabled, Modifier.fillMaxWidth().height(520.dp))
+        Spacer(Modifier.height(16.dp))
+        WireDestination(s, enabled, Modifier.fillMaxWidth().height(620.dp))
+    }
+}
+
+@Composable
+private fun WirePurpose(s: WireSession, enabled: Boolean, modifier: Modifier) {
+    WirePanel(modifier) {
+        Text("이동 목적", style = MaterialTheme.typography.titleLarge, color = Wire.ink)
+        WireSub("고른 목적에 맞춰 기본 설정이 정해져요")
+        Spacer(Modifier.height(22.dp))
+        listOf("친구 여행" to "함께 듣는 DJ · 순위 켜짐",
+            "가족" to "안부 · 도착 알림 중심", "업무 · 단체" to "조용한 기본값").forEach { (title, desc) ->
+            val selected = s.purpose == title
+            Surface(Modifier.fillMaxWidth().height(142.dp).clickable(enabled) { s.purpose = title },
+                color = if (selected) Wire.muted else Wire.surface,
+                shape = RoundedCornerShape(Pleos215.RadiusMedium),
+                border = BorderStroke(2.dp, if (selected) Wire.action else Wire.mutedStrong)) {
+                Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    Box(Modifier.size(64.dp).background(Wire.mutedStrong, CircleShape))
+                    Column(Modifier.weight(1f)) {
+                        Text(title, style = MaterialTheme.typography.titleMedium, color = Wire.ink)
+                        WireSub(desc)
+                    }
+                    WireChip(if (selected) "✓" else "○", selected = selected)
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun WireDestination(s: WireSession, enabled: Boolean, modifier: Modifier) {
+    WirePanel(modifier) {
+        Text("목적지", style = MaterialTheme.typography.titleLarge, color = Wire.ink)
+        Spacer(Modifier.height(18.dp))
+        WireInput(s.destination, { s.destination = it }, "어디로 가나요?",
+            Modifier.fillMaxWidth(), enabled)
+        Spacer(Modifier.height(18.dp))
+        WireSub("최근 목적지")
+        Spacer(Modifier.height(12.dp))
+        listOf("가평 용추계곡" to "경기 가평군 · 82km",
+            "양주 글램핑장" to "경기 양주시 · 45km",
+            "할머니 댁" to "충남 공주시 · 140km").forEach { (title, desc) ->
+            Surface(Modifier.fillMaxWidth().clickable(enabled) { s.destination = title },
+                color = Wire.muted, shape = RoundedCornerShape(Pleos215.RadiusMedium),
+                border = if (s.destination == title) BorderStroke(2.dp, Wire.action) else null) {
+                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    Box(Modifier.size(48.dp).background(Wire.mutedStrong, CircleShape))
+                    Column {
+                        Text(title, style = MaterialTheme.typography.titleMedium, color = Wire.ink)
+                        WireSub(desc)
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+        Spacer(Modifier.weight(1f))
+        WireButton("여행 만들기", { s.open(WireScreen.INVITE) },
+            enabled = enabled && s.destination.isNotBlank(), modifier = Modifier.fillMaxWidth())
+    }
+}
