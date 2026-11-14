@@ -9,9 +9,9 @@
    ```powershell
    adb install --user 10 "Linkcar_Linkcar_release.apk"
    ```
-3. 에뮬레이터 앱 목록 또는 하단 고정 앱 영역에서 **LINKCAR** 아이콘을 눌러 실행합니다.
+3. 에뮬레이터 앱 목록에서 **LINKCAR** 아이콘을 눌러 실행합니다. 하단 GNB에 직접 고정한 경우에는 그 아이콘으로도 실행할 수 있습니다.
 
-기존 디버그 빌드가 설치되어 있으면 서명이 달라 업데이트 설치가 거부될 수 있습니다. 이 경우 해당 앱(`com.contest.travel.preview`)을 제거한 뒤 제출 APK를 설치합니다.
+기존 디버그 빌드가 설치되어 있으면 서명이 달라 업데이트 설치가 거부될 수 있습니다. 이 경우 `adb uninstall com.contest.travel.preview`로 제거한 뒤 제출 APK를 설치합니다. 제거하면 기존 앱의 로컬 데이터도 삭제됩니다.
 
 ## 테스트 환경 및 설정
 
@@ -19,8 +19,8 @@
 - Vehicle Service **2.3.22**. 앱의 차량 연동 의존성: Vehicle SDK **2.3.2**, NaviHelper **3.0.5**, SpeechToText **3.3.1**, FusedLocation **1.1.3**.
 - 에뮬레이터의 Virtual Console에서 주차·주행 상태와 차량 이동을 시연합니다. 주행 중 일부 조작은 안전 제한 화면으로 전환됩니다.
 - 현재 확대 지도는 MapLibre와 OpenFreeMap 타일을 사용하며 인터넷 연결이 필요합니다. 네이버 지도 키나 GitHub Secret 없이 표시됩니다. 네이버 Maps SDK Client ID는 추후 네이버 지도로 전환할 때 루트의 추적되지 않는 `local.properties`에 `NAVER_MAP_CLIENT_ID`로 설정합니다. Directions 연결은 아직 구현되지 않았고, 해당 Client Secret은 APK에 넣지 않습니다.
-- 음성 기반 AI 투표 시연은 호스트 PC에서 `OPENAI_API_KEY`를 환경 변수로 지정하고 `python tools/openai_poll_bridge.py`를 실행해야 합니다. API 키와 서명 키는 저장소에 포함하지 않습니다.
-- 여러 차량의 위치·점수·음성 메시지는 현재 에뮬레이터 시연 데이터이며 차량 간 실시간 서버 연결은 포함하지 않습니다.
+- AI 투표 안건 생성은 호스트 PC에서 `OPENAI_API_KEY`를 환경 변수로 지정하고 `python tools/openai_poll_bridge.py`를 실행해야 합니다. Pleos 음성 인식 엔진이 동작하지 않으면 앱의 **텍스트로 AI 투표 시험** 버튼으로 입력할 수 있습니다. API 키와 서명 키는 저장소에 포함하지 않습니다.
+- 다른 차량의 위치·점수와 차량 간 공유는 현재 에뮬레이터 시연 데이터입니다. 마이크로 남긴 음성은 이 기기에서 녹음·저장·재생할 수 있지만 차량 간 실시간 서버 연결이나 음성 전송은 포함하지 않습니다.
 
 ## 소스 코드
 
