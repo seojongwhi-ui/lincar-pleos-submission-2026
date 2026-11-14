@@ -1,6 +1,10 @@
 # 링카 네이버 지도 키 입력
 
-## 지도 화면용 Client ID
+현재 제출 앱의 확대 지도는 MapLibre와 OpenFreeMap 타일을 사용한다. 이 화면에는
+네이버 Client ID나 GitHub Actions Secret이 필요하지 않으며, 타일을 받으려면
+인터넷 연결이 필요하다. 아래 설정은 네이버 지도 SDK로 전환할 때 사용한다.
+
+## 향후 네이버 지도 화면용 Client ID
 
 프로젝트 최상위의 `local.properties` 파일을 열고 아래 등호 뒤에 발급받은 **Client ID**를 입력한다.
 
@@ -11,6 +15,7 @@ NAVER_MAP_CLIENT_ID=발급받은_Client_ID
 이 파일은 Git 업로드 대상에서 제외되어 있다. 빌드할 때 `:travel-preview` 앱의
 `com.naver.maps.map.NCP_KEY_ID` 매니페스트 설정으로 전달된다. 네이버 클라우드에서
 **Dynamic Map**을 활성화하고 Android 패키지명 `com.contest.travel.preview`를 등록해야 한다.
+현재 빌드에도 Client ID가 들어갈 수 있지만 MapLibre 지도 화면에서는 읽지 않는다.
 
 ## Directions용 Client Secret
 
@@ -25,5 +30,5 @@ Directions 연결 서버는 아직 구현되지 않았다. 따라서 Secret을 �
 경로가 바뀌지는 않는다. 추후 서버에서 같은 Client ID와 이 Secret으로 Directions를
 호출하도록 연결한다. Secret은 APK나 Git에 포함하지 않는다.
 
-지도 확대 화면은 네이버 지도 SDK로 표시된다. 지도 위 차량 마커와 경로선은 현재
-로컬 시연 데이터이며, 실제 Directions 경로나 다른 차량의 실시간 위치가 아니다.
+현재 확대 지도는 MapLibre로 표시된다. 지도 위 차량 마커와 경로선은 로컬 시연
+데이터이며, 실제 Directions 경로나 다른 차량의 실시간 위치가 아니다.
