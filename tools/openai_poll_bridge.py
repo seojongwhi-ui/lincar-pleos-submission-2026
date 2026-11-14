@@ -109,5 +109,5 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    print("LinkCar OpenAI poll bridge: http://127.0.0.1:8765", flush=True)
+    print("LinCar OpenAI poll bridge: http://127.0.0.1:8765", flush=True)
     ThreadingHTTPServer(("127.0.0.1", 8765), Handler).serve_forever()

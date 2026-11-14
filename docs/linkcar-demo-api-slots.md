@@ -1,8 +1,8 @@
-# 링카(LinkCar) 단일 기기 시연과 API 연결 지점
+# 린카(LinCar) 단일 기기 시연과 API 연결 지점
 
 ## 현재 동작
 
-Pleos 에뮬레이터에서 **링카 앱 아이콘**을 누르면 시연 홈이 바로 열리고 다음 흐름을 실행한다.
+Pleos 에뮬레이터에서 **린카 앱 아이콘**을 누르면 시연 홈이 바로 열리고 다음 흐름을 실행한다.
 
 화면 구성과 문구는 [Figma 와이어프레임 21개](https://www.figma.com/design/c3q0MskWTtRP5gE9WspRVo/%ED%98%84%EB%8C%80-%EA%B3%B5%EB%AA%A8%EC%A0%84?node-id=252-11453)를 기준으로 다시 만들었다.
 

@@ -1,15 +1,15 @@
-﻿# Linkcar (링카)
+﻿# LinCar (린카)
 
 서로 다른 차로 함께 여행하는 사람들이 출발부터 도착까지 같은 여정을 느끼도록 돕는 차량 동행 앱입니다.
 
 ## 실행 방법
 
-1. [제출용 Release](https://github.com/seojongwhi-ui/linkcar-pleos-submission-2026/releases/tag/submission-2026-11-15)에서 `Linkcar_Linkcar_release.apk`를 내려받습니다.
+1. [제출용 Release](https://github.com/seojongwhi-ui/lincar-pleos-submission-2026/releases/tag/submission-2026-11-15)에서 APK를 내려받습니다. GitHub가 파일명 공백을 점으로 바꾸므로 Release에는 `Team.LinCar_LinCar_release.apk`로 표시됩니다.
 2. Pleos Connect-S 에뮬레이터를 실행하고 APK를 설치합니다. 이 환경의 운전자 사용자 ID는 10입니다.
    ```powershell
-   adb install --user 10 "Linkcar_Linkcar_release.apk"
+   adb install --user 10 "Team.LinCar_LinCar_release.apk"
    ```
-3. 에뮬레이터 앱 목록에서 **LINKCAR** 아이콘을 눌러 실행합니다. 하단 GNB에 직접 고정한 경우에는 그 아이콘으로도 실행할 수 있습니다.
+3. 에뮬레이터 앱 목록에서 **LinCar** 앱을 눌러 실행합니다. 하단 GNB에 직접 고정한 경우에는 그 아이콘으로도 실행할 수 있습니다.
 
 기존 디버그 빌드가 설치되어 있으면 서명이 달라 업데이트 설치가 거부될 수 있습니다. 이 경우 `adb uninstall com.contest.travel.preview`로 제거한 뒤 제출 APK를 설치합니다. 제거하면 기존 앱의 로컬 데이터도 삭제됩니다.
 
@@ -34,4 +34,4 @@
 
 ## APK 위치
 
-서명된 release APK는 용량이 100MB를 넘어 저장소 파일 대신 [GitHub Releases](https://github.com/seojongwhi-ui/linkcar-pleos-submission-2026/releases/tag/submission-2026-11-15)에 첨부했습니다. 파일명은 `Linkcar_Linkcar_release.apk`입니다.
+서명된 release APK는 용량이 100MB를 넘어 저장소 파일 대신 [GitHub Releases](https://github.com/seojongwhi-ui/lincar-pleos-submission-2026/releases/tag/submission-2026-11-15)에 첨부했습니다. 로컬 원본 파일명은 `Team LinCar_LinCar_release.apk`이고, GitHub 다운로드 파일명은 `Team.LinCar_LinCar_release.apk`입니다.

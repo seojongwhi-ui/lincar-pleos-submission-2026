@@ -35,7 +35,7 @@ internal fun RoadConvoyMap(overview: Boolean, cameraRevision: Int, enabled: Bool
     val owner = LocalLifecycleOwner.current
     val convoy = LocalConvoy.current
     val live = LocalTripLive.current
-    var status by remember { mutableStateOf("링카 지도 연결 중…") }
+    var status by remember { mutableStateOf("린카 지도 연결 중…") }
     var failed by remember { mutableStateOf(false) }
     var loaded by remember { mutableStateOf(false) }
     var retry by remember { mutableIntStateOf(0) }
@@ -55,12 +55,12 @@ internal fun RoadConvoyMap(overview: Boolean, cameraRevision: Int, enabled: Bool
     DisposableEffect(bridge, owner) {
         loaded = false
         failed = false
-        status = "링카 지도 연결 중…"
+        status = "린카 지도 연결 중…"
         bridge.start(
             onReady = {
                 if (!failed) {
                     loaded = true
-                    status = "링카 지도 · 차량 위치와 경로는 시연 데이터"
+                    status = "린카 지도 · 차량 위치와 경로는 시연 데이터"
                 }
             },
             onError = { reason ->
@@ -80,7 +80,7 @@ internal fun RoadConvoyMap(overview: Boolean, cameraRevision: Int, enabled: Bool
         delay(25_000)
         if (!loaded && !failed) {
             failed = true
-            status = "링카 지도 응답 시간이 초과됐어요. 네트워크를 확인하고 다시 시도해 주세요."
+            status = "린카 지도 응답 시간이 초과됐어요. 네트워크를 확인하고 다시 시도해 주세요."
         }
     }
     LaunchedEffect(bridge) {
@@ -101,7 +101,7 @@ internal fun RoadConvoyMap(overview: Boolean, cameraRevision: Int, enabled: Bool
         AndroidView(factory = { bridge.view }, modifier = Modifier.fillMaxSize(),
             update = {
                 it.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
-                it.contentDescription = "링카 링카 지도. " +
+                it.contentDescription = "린카 지도. " +
                     cars.mapIndexed { i, p -> "${convoyNames[i]} ${p?.let(::formatPoint) ?: "위치 없음"}" }
                         .joinToString(". ")
                 bridge.setGesturesEnabled(enabled)

@@ -1,4 +1,4 @@
-# 링카 네이버 지도 키 입력
+# 린카 네이버 지도 키 입력
 
 현재 제출 앱의 확대 지도는 MapLibre와 OpenFreeMap 타일을 사용한다. 이 화면에는
 네이버 Client ID나 GitHub Actions Secret이 필요하지 않으며, 타일을 받으려면

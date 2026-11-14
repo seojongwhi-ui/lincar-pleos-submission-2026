@@ -48,7 +48,7 @@ Connect-S의 원본 값을 사용합니다. 아래 크기는 원본의 제작 �
 | `button/filled/pressed` | `#313236` | `#C7C9CE` |
 | `informative/positive` | `#0064FF` | `#0082FF` |
 
-공통 테마에는 라이트/다크 토큰이 있습니다. 현재 링카 와이어프레임 시연은 라이트 화면의 중립 색상을 사용합니다.
+공통 테마에는 라이트/다크 토큰이 있습니다. 현재 린카 와이어프레임 시연은 라이트 화면의 중립 색상을 사용합니다.
 지도 위 차량 표식과 앱 아이콘도 임의 주황색·남색 대신 제공된 색을 사용합니다. 회색 표식에는 어두운 글자로 대비를 확보합니다.
 실제 지도 타일의 지형·도로·지명은 외부 지도 데이터이며, 앱 UI의 컴포넌트 토큰과 구분합니다.
 지도 확대 배경은 네이버 지도 SDK의 Basic 지도를 사용합니다. 지도 자체의 색상은 네이버 지도 SDK가 제공합니다.
@@ -58,7 +58,7 @@ Connect-S의 원본 값을 사용합니다. 아래 크기는 원본의 제작 �
 Display guide의 Connect-S 예시는 시스템의 운전자 영역과 앱 영역을 Landscape 1:2, Portrait 1:1:1로 설명합니다 (`2124:7105`, `2124:7115`).
 앱은 시스템이 할당한 Activity 크기에 반응합니다. Driving View·상태바·GNB를 앱 내부에 다시 만들지 않습니다.
 
-현재 링카의 화면 배치는 Figma 와이어프레임을 따릅니다. 이를 Pleos 공식 원본의 완성 화면 복사본으로 취급하지 않습니다.
+현재 린카의 화면 배치는 Figma 와이어프레임을 따릅니다. 이를 Pleos 공식 원본의 완성 화면 복사본으로 취급하지 않습니다.
 카드와 패널은 제공된 색상·모서리·타입 스케일을 조합합니다. 기존 자체 아이콘은 원본의 선 두께·그리드·round 규칙으로 정리하며 원본 에셋을 그대로 추출한 아이콘이라고 표시하지 않습니다.
 
 현재 AVD는 Connect-S 2560×1440입니다. 실제 앱 창은 넓은 창 약 1682×1210, 좁은 창 약 841×1210입니다.
@@ -69,7 +69,7 @@ Display guide의 Connect-S 예시는 시스템의 운전자 영역과 앱 영역
 - `PleosDesign215.kt`: 공통 서체·타입·색상·기본 크기.
 - `LinkCarDemo.kt`: 와이어프레임 공통 버튼·패널·입력 필드와 화면 상태.
 - `LinkCarWireJourney.kt`, `LinkCarWireDrive.kt`, `LinkCarWireEnding.kt`: 와이어프레임 화면.
-- `TravelPreview.kt`: 시스템 앱 영역 안에서 링카 화면을 실행.
+- `TravelPreview.kt`: 시스템 앱 영역 안에서 린카 화면을 실행.
 - `RoadConvoyMap.kt`: 차량 이름의 Asta Sans, 표식 대비·색상.
 - `res/font/asta_sans.ttf`: 원본에서 지정한 Asta Sans의 공식 Google Fonts 배포본.
 - `assets/licenses/AstaSans-OFL.txt`: 서체에 동봉한 SIL Open Font License.
@@ -77,7 +77,7 @@ Display guide의 Connect-S 예시는 시스템의 운전자 영역과 앱 영역
 서체 배포 원문: [Google Fonts Asta Sans](https://github.com/google/fonts/tree/main/ofl/astasans).
 원본 서체 프로젝트: [42dot/Asta-Sans](https://github.com/42dot/Asta-Sans).
 
-기존 Vehicle/NaviHelper 연동 코드는 유지합니다. 링카 와이어프레임의 점수와 도착 시간은 아직 SDK 조회값에 연결하지 않았습니다.
+기존 Vehicle/NaviHelper 연동 코드는 유지합니다. 린카 와이어프레임의 점수와 도착 시간은 아직 SDK 조회값에 연결하지 않았습니다.
 실제 내비게이션 엔진, 차량 간 통신이나 음성 기능은 현재 시연에 포함하지 않습니다.
 
 ## 이후 변경 확인
@@ -85,7 +85,7 @@ Display guide의 Connect-S 예시는 시스템의 운전자 영역과 앱 영역
 `node tools/check-pleos-design.cjs`는 원본 파일의 지문(로컬 파일이 있을 때), UI 색상과 타입 스케일을 추출 데이터와 대조합니다.
 이미지 비교나 전체 가이드 적합성 인증을 대신하는 검사가 아닙니다. 배치·아이콘·실제 기기 동작은 별도로 확인합니다.
 
-## 2026-11-10 링카 와이어프레임 확인
+## 2026-11-10 린카 와이어프레임 확인
 
 - `:travel-preview:assembleDebug`와 원본 지문·색상·타입 스케일 검사를 통과했습니다.
 - Pleos Connect-S의 넓은 앱 영역에서 홈→여행 만들기→초대→대기실→주행 화면을 확인했습니다.
@@ -118,7 +118,7 @@ Display guide의 Connect-S 예시는 시스템의 운전자 영역과 앱 영역
 
 - 사용자 지정 흐름 `443:14524`와 개별 프레임 11개를 기준으로 홈, 여행 만들기(선택 전·후), 초대, 방장 대기실, 미션, 음악, 초대 거절, 받은 초대, 공유 범위, 참여자 대기실을 반영했습니다. 노드 목록과 색상·모션 근거는 `linkcar-journey-figma.json`에 기록했습니다.
 - 1700×1184 원본을 실제 Activity 영역에 동일한 가로·세로 배율로 배치합니다. 시스템의 운전자 화면·상태 바·GNB는 복제하지 않습니다.
-- 이번 요청의 링카 앱 전용 타이포그래피는 원본 프레임에 지정된 기존 Pretendard Variable을 사용합니다. Pleos 시스템 테마의 Asta Sans는 유지합니다.
+- 이번 요청의 린카 앱 전용 타이포그래피는 원본 프레임에 지정된 기존 Pretendard Variable을 사용합니다. Pleos 시스템 테마의 Asta Sans는 유지합니다.
 - 개별 원본 사진과 SVG를 로컬 리소스로 사용합니다. 원본 SVG는 `assets/figma/predrive/`에, 표시용 PNG와 출처·지문은 `linkcar-predrive-assets.json`에 보관했습니다. 완성 화면 캡처를 UI 이미지로 사용하지 않습니다.
 - 입력·선택·버튼·공유 스위치는 Compose로 구현했습니다. 뒤로 가도 목적지·이동 목적·초대 대상 선택을 유지하며, 재선택해도 참여자 순서는 시안대로 유지합니다. 내 차 포함 최대 네 대 제한과 선택 전 초대 버튼 비활성 상태를 확인합니다.
 - 원본 11개 노드의 `get_motion_context` 결과에는 키프레임이 없습니다. 사용자 요청에 따라 이동+페이드(240~280ms), 눌림 배율 0.98의 스프링, 선택 상태의 짧은 전환을 적용했습니다. Compose의 시스템 애니메이션 배율을 따릅니다. 주행 중 기존 화면 사이의 전환은 이번 변경에서 유지합니다.
